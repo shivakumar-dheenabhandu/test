@@ -60,7 +60,7 @@ pipeline {
                             sudo docker rm -f nginx-site 2>/dev/null || true
                             sudo docker run -d \
                                 --name nginx-site \
-                                -p 80:80 \
+                                -p 80:8080 \
                                 -v /opt/test-site:/usr/share/nginx/html:ro \
                                 --restart unless-stopped \
                                 nginx
