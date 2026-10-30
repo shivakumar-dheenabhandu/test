@@ -1,0 +1,82 @@
+
+pipeline {
+    agent { label 'main' }
+
+    stages {
+
+        stage('Cleanws') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Check for the update') {
+            steps {
+                sshagent(['docker_host']) {
+                    sh 'ssh -o StrictHostKeyChecking=no ${hostname} "sudo apt update -y"'
+                }
+            }
+        }
+
+        stage('Install Docker and Git') {
+            steps {
+                sshagent(['docker_host']) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${hostname} '
+                            sudo apt install docker.io git -y &&
+                            sudo systemctl enable --now docker
+                        '
+                    '''
+                }
+            }
+        }
+
+        stage('Docker Pull Nginx Image') {
+            steps {
+                sshagent(['docker_host']) {
+                    sh 'ssh -o StrictHostKeyChecking=no ${hostname} "sudo docker pull nginx"'
+                }
+            }
+        }
+
+        stage('Clone GitHub Repository') {
+            steps {
+                sshagent(['docker_host']) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${hostname} '
+                            sudo rm -rf /opt/test-site &&
+                            sudo git clone https://github.com/shivakumar-dheenabhandu/test.git /opt/test-site
+                        '
+                    '''
+                }
+            }
+        }
+
+        stage('Create Nginx Container') {
+            steps {
+                sshagent(['docker_host']) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${hostname} '
+                            sudo docker rm -f nginx-site 2>/dev/null || true
+                            sudo docker run -d \
+                                --name nginx-site \
+                                -p 80:80 \
+                                -v /opt/test-site:/usr/share/nginx/html:ro \
+                                --restart unless-stopped \
+                                nginx
+                        '
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Docker Container') {
+            steps {
+                sshagent(['docker_host']) {
+                    sh 'ssh -o StrictHostKeyChecking=no ${hostname} "sudo docker ps"'
+                    sh 'ssh -o StrictHostKeyChecking=no ${hostname} "sudo docker images"'
+                }
+            }
+        }
+    }
+}
